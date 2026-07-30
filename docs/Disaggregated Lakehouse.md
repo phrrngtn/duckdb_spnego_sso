@@ -1,11 +1,11 @@
 # Disaggregated Lakehouse — Out-of-Band Writers, Keyless Readers
 
-> Where blobsso sits in a bigger picture: it governs the **read** side of a lakehouse whose
+> Where sso sits in a bigger picture: it governs the **read** side of a lakehouse whose
 > **write** side is deliberately decoupled from any query engine. This note works through the
 > pattern and a concrete use-case — **constructing arbitrary facets over pre-existing data by
 > writing independent catalogs out-of-band, with zero data copy** — and why it's compelling for
-> **cloud → on-premises data repatriation**. Related: [[blobsso]], [[spnego-token]],
-> [[blobsso Performance]].
+> **cloud → on-premises data repatriation**. Related: [[sso]], [[spnego-token]],
+> [[sso Performance]].
 
 ## The two planes of a lakehouse
 
@@ -61,7 +61,7 @@ Each facet is a few hundred rows in a SQL catalog. The Parquet is written once a
 reference. A consumer attaches *their* catalog and queries *their* facet; the data plane is
 identical underneath.
 
-### Where blobsso fits
+### Where sso fits
 
 The facets are governed on the **read** side by identity, not by static keys:
 
@@ -72,8 +72,8 @@ ATTACH 'ducklake:…public_catalog…' AS pub (DATA_PATH 's3://lake/data/');
 SELECT * FROM pub.readings;   -- reads the shared Parquet with SSO'd temporary creds
 ```
 
-- **Write path** (OOB producer → Parquet + catalog) is fully independent of DuckDB and of blobsso.
-- **Read path** (DuckDB + the facet catalog) gets keyless, auto-rotating S3 access from blobsso —
+- **Write path** (OOB producer → Parquet + catalog) is fully independent of DuckDB and of sso.
+- **Read path** (DuckDB + the facet catalog) gets keyless, auto-rotating S3 access from sso —
   the consumer's enterprise identity, not a distributed access key, decides what they can read.
 
 The two are orthogonal: producers land artifacts and register facets; consumers authenticate via
@@ -88,7 +88,7 @@ The disaggregation is exactly what a repatriation flow wants:
 2. **Build governed facets on-prem, out-of-band.** Independent catalogs over those artifacts
    express each team's view — column/row curation, bitemporal source-time — without copying data
    or standing up a write-side engine.
-3. **Govern reads by on-prem identity.** blobsso turns the existing enterprise SSO (Kerberos →
+3. **Govern reads by on-prem identity.** sso turns the existing enterprise SSO (Kerberos →
    OIDC → STS) into short-lived, keyless credentials, so on-prem access control — not cloud IAM,
    not shared keys — decides who reads what.
 
@@ -101,10 +101,10 @@ credentials and no lock-in on the producer side.
 The pieces this composes from were each exercised against a live on-prem stack (Samba KDC,
 Keycloak, MinIO):
 
-- **blobsso** reads *and writes* MinIO with SSO'd STS creds (no static keys) — the read/write
+- **sso** reads *and writes* MinIO with SSO'd STS creds (no static keys) — the read/write
   feasibility for both consumers and OOB stagers.
 - **DuckLake catalog** answers metadata queries from the catalog alone — e.g. `count(*)` in ~4 ms
-  having opened **zero** Parquet files (see [[blobsso Performance]] for the numbers).
+  having opened **zero** Parquet files (see [[sso Performance]] for the numbers).
 - **OOB catalog writes** populate the ~28 DuckLake catalog tables directly via SQLAlchemy
   (Postgres / SQLite / DuckDB), so any producer can register data with no DuckDB on the write path.
 
@@ -116,7 +116,7 @@ Keycloak, MinIO):
 3. **Facet B (`public`):** a *second*, independent catalog over the *same* `data_path`, declaring
    `readings` with a **subset of columns** — a governance view, zero copy.
 4. **Read (keyless):** from any client, `CREATE SECRET … PROVIDER sso`, `ATTACH` each catalog with
-   `DATA_PATH 's3://…/data/'`, and query — the shared Parquet is read with blobsso's temporary
+   `DATA_PATH 's3://…/data/'`, and query — the shared Parquet is read with sso's temporary
    credentials.
 
 The catalogs are independent SQL artifacts; the data plane is one set of files; identity governs

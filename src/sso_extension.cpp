@@ -1,6 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
-#include "blobsso_extension.hpp"
+#include "sso_extension.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
@@ -92,15 +92,15 @@ static string GetOption(const CreateSecretInput &input, const string &key, const
 	return fallback;
 }
 
-// Optional per-step timing for the SSO chain. Set BLOBSSO_TIMING=1 to print a stderr
+// Optional per-step timing for the SSO chain. Set SSO_TIMING=1 to print a stderr
 // breakdown; off by default (a single getenv check, no other overhead).
 static std::chrono::steady_clock::time_point TimingNow() {
 	return std::chrono::steady_clock::now();
 }
 static void TimingMark(const char *label, std::chrono::steady_clock::time_point since) {
-	if (std::getenv("BLOBSSO_TIMING")) {
+	if (std::getenv("SSO_TIMING")) {
 		auto ms = std::chrono::duration<double, std::milli>(TimingNow() - since).count();
-		fprintf(stderr, "blobsso: %-20s %8.2f ms\n", label, ms);
+		fprintf(stderr, "sso: %-20s %8.2f ms\n", label, ms);
 	}
 }
 
@@ -163,7 +163,7 @@ static OidcEndpoints OidcDiscover(HTTPUtil &http_util, HTTPParams &params, const
 	ep.authorization_endpoint = ExtractJsonString(disc_body, "authorization_endpoint");
 	ep.token_endpoint = ExtractJsonString(disc_body, "token_endpoint");
 	if (ep.authorization_endpoint.empty() || ep.token_endpoint.empty()) {
-		throw InvalidInputException("blobsso 'sso' provider: OIDC discovery failed at "
+		throw InvalidInputException("sso provider: OIDC discovery failed at "
 		                            "%s/.well-known/openid-configuration",
 		                            issuer);
 	}
@@ -182,14 +182,14 @@ static string SpnegoAuthorize(HTTPUtil &http_util, HTTPParams &params, const str
 	try {
 		negotiate = spnego::GenerateTokenForUrl(authorization_endpoint, allow_http).token;
 	} catch (const std::exception &e) {
-		throw InvalidInputException("blobsso 'sso' provider: SPNEGO/Kerberos token generation failed (%s). "
+		throw InvalidInputException("sso provider: SPNEGO/Kerberos token generation failed (%s). "
 		                            "Do you have a ticket (kinit)?",
 		                            e.what());
 	}
 	TimingMark("  spnego_gen", t);
 	const string auth_url = authorization_endpoint + "?client_id=" + UrlEncode(client_id) +
 	                        "&response_type=code&scope=openid&redirect_uri=" + UrlEncode(redirect_uri) +
-	                        "&state=blobsso";
+	                        "&state=sso";
 	HTTPHeaders auth_headers;
 	auth_headers.Insert("Authorization", "Negotiate " + negotiate);
 	params.follow_location = false;
@@ -200,7 +200,7 @@ static string SpnegoAuthorize(HTTPUtil &http_util, HTTPParams &params, const str
 	const string location = (resp && resp->HasHeader("Location")) ? resp->GetHeaderValue("Location") : "";
 	auto cpos = location.find("code=");
 	if (cpos == string::npos) {
-		throw InvalidInputException("blobsso 'sso' provider: SPNEGO auth did not yield an authorization code "
+		throw InvalidInputException("sso provider: SPNEGO auth did not yield an authorization code "
 		                            "(status %d). Check the SPN/keytab and client_id.",
 		                            resp ? static_cast<int>(resp->status) : 0);
 	}
@@ -222,7 +222,7 @@ static string OidcExchangeCode(HTTPUtil &http_util, HTTPParams &params, const st
 	const string token_resp = HttpPostForm(http_util, params, token_endpoint, token_body, client);
 	const string jwt = ExtractJsonString(token_resp, "access_token");
 	if (jwt.empty()) {
-		throw InvalidInputException("blobsso 'sso' provider: code exchange returned no access_token. Body: %s",
+		throw InvalidInputException("sso provider: code exchange returned no access_token. Body: %s",
 		                            token_resp);
 	}
 	return jwt;
@@ -236,7 +236,7 @@ static string AcquireTokenViaSpnego(ClientContext &context, HTTPUtil &http_util,
 	const string redirect_uri = GetOption(input, "redirect_uri", "http://localhost/cb");
 	const bool allow_http = GetOption(input, "allow_http_negotiate") == "true";
 	if (client_id.empty()) {
-		throw InvalidInputException("blobsso 'sso' provider: 'client_id' is required with 'oidc_issuer'.");
+		throw InvalidInputException("sso provider: 'client_id' is required with 'oidc_issuer'.");
 	}
 
 	auto params = http_util.InitializeParameters(context, issuer);
@@ -280,7 +280,7 @@ static string AcquireWebIdentityToken(ClientContext &context, HTTPUtil &http_uti
 	if (env_file) {
 		return ReadFileToString(context, env_file);
 	}
-	throw InvalidInputException("blobsso 'sso' provider: no web-identity token. Supply 'token', "
+	throw InvalidInputException("sso provider: no web-identity token. Supply 'token', "
 	                            "'web_identity_token_file', 'oidc_issuer' (Kerberos/SPNEGO), or set "
 	                            "AWS_WEB_IDENTITY_TOKEN_FILE.");
 }
@@ -291,7 +291,7 @@ static string AcquireWebIdentityToken(ClientContext &context, HTTPUtil &http_uti
 static unique_ptr<BaseSecret> CreateS3SecretFromSSO(ClientContext &context, CreateSecretInput &input) {
 	const string sts_endpoint = GetOption(input, "sts_endpoint");
 	if (sts_endpoint.empty()) {
-		throw InvalidInputException("blobsso 'sso' provider: 'sts_endpoint' is required (e.g. the MinIO/STS URL).");
+		throw InvalidInputException("sso provider: 'sts_endpoint' is required (e.g. the MinIO/STS URL).");
 	}
 
 	auto &db = DatabaseInstance::GetDatabase(context);
@@ -302,7 +302,7 @@ static unique_ptr<BaseSecret> CreateS3SecretFromSSO(ClientContext &context, Crea
 	TimingMark("jwt_total", t_jwt);
 	const string role_arn = GetOption(input, "role_arn");
 	const string duration = GetOption(input, "duration_seconds");
-	const string session_name = GetOption(input, "role_session_name", "blobsso");
+	const string session_name = GetOption(input, "role_session_name", "sso");
 
 	string body = "Action=AssumeRoleWithWebIdentity&Version=2011-06-15";
 	body += "&WebIdentityToken=" + UrlEncode(token);
@@ -322,7 +322,7 @@ static unique_ptr<BaseSecret> CreateS3SecretFromSSO(ClientContext &context, Crea
 	if (xml.find("<ErrorResponse") != string::npos || xml.find("<Error>") != string::npos) {
 		string code = ExtractXmlTag(xml, "Code");
 		string message = ExtractXmlTag(xml, "Message");
-		throw InvalidInputException("blobsso 'sso' provider: STS AssumeRoleWithWebIdentity failed (%s) at %s",
+		throw InvalidInputException("sso provider: STS AssumeRoleWithWebIdentity failed (%s) at %s",
 		                            code + ": " + message, sts_endpoint);
 	}
 
@@ -331,7 +331,7 @@ static unique_ptr<BaseSecret> CreateS3SecretFromSSO(ClientContext &context, Crea
 	const string session_token = ExtractXmlTag(xml, "SessionToken");
 	const string expiration = ExtractXmlTag(xml, "Expiration");
 	if (key_id.empty() || secret.empty()) {
-		throw InvalidInputException("blobsso 'sso' provider: STS response missing credentials. Body: %s", xml);
+		throw InvalidInputException("sso provider: STS response missing credentials. Body: %s", xml);
 	}
 
 	auto scope = input.scope;
@@ -452,15 +452,15 @@ static void LoadInternal(ExtensionLoader &loader) {
 	RegisterNegotiateFunctions(loader);
 }
 
-void BlobssoExtension::Load(ExtensionLoader &loader) {
+void SsoExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
-std::string BlobssoExtension::Name() {
-	return "blobsso";
+std::string SsoExtension::Name() {
+	return "sso";
 }
-std::string BlobssoExtension::Version() const {
-#ifdef EXT_VERSION_BLOBSSO
-	return EXT_VERSION_BLOBSSO;
+std::string SsoExtension::Version() const {
+#ifdef EXT_VERSION_SSO
+	return EXT_VERSION_SSO;
 #else
 	return "";
 #endif
@@ -469,7 +469,7 @@ std::string BlobssoExtension::Version() const {
 } // namespace duckdb
 
 extern "C" {
-DUCKDB_CPP_EXTENSION_ENTRY(blobsso, loader) {
+DUCKDB_CPP_EXTENSION_ENTRY(sso, loader) {
 	duckdb::LoadInternal(loader);
 }
 }

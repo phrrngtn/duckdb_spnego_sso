@@ -1,4 +1,4 @@
-blobsso
+sso
 Copyright (c) 2026 Paul Harrington
 
 This repository's own source is licensed under the MIT License (see LICENSE).
@@ -8,13 +8,13 @@ and retaining their own copyrights and licenses:
 
   * duckdb/               git submodule -> https://github.com/duckdb/duckdb (v1.5.4)
                           Copyright DuckDB Foundation; under DuckDB's license.
-                          (Pulls the full DuckDB monorepo because blobsso builds
+                          (Pulls the full DuckDB monorepo because sso builds
                           against the C++ extension API. Porting to the C Extension
                           API — as blobodbc/blobfilters do — would remove this
-                          submodule and shrink the checkout to blobsso's own code.)
+                          submodule and shrink the checkout to sso's own code.)
   * extension-ci-tools/   git submodule -> https://github.com/duckdb/extension-ci-tools
                           Copyright DuckDB Foundation; under DuckDB's license.
   * third_party/spnego-token/  git submodule; under its own license.
 
 DuckDB copyrights apply ONLY to the DuckDB submodules above (the extension build
-mechanism). No DuckDB-copyrighted code is present in blobsso's own sources.
+mechanism). No DuckDB-copyrighted code is present in sso's own sources.

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Integration test: blobsso 'sso' provider against a mock STS server.
+"""Integration test: sso provider against a mock STS server.
 
 Starts a local HTTP server that mimics MinIO/AWS STS
 AssumeRoleWithWebIdentity, drives the built duckdb CLI through
 CREATE SECRET (..., PROVIDER sso, ...), and asserts that the temporary
 credentials parsed out of the STS XML land in the secret. Also checks the
-request body blobsso sent was correctly form-encoded.
+request body sso sent was correctly form-encoded.
 
 Run: uv run --no-project python test/mock_sts_test.py
 Requires a prior `make` (uses build/release/duckdb). Stdlib only.
@@ -95,7 +95,7 @@ SELECT name, type, provider, secret_string FROM duckdb_secrets() WHERE name='moc
     if out.returncode != 0:
         fail(f"duckdb exited {out.returncode}\n{combined}")
 
-    # 1. blobsso sent a well-formed STS request
+    # 1. sso sent a well-formed STS request
     form = received.get("form", {})
     if form.get("Action") != ["AssumeRoleWithWebIdentity"]:
         fail(f"STS Action wrong/absent. body={received.get('body')!r}")
@@ -113,7 +113,7 @@ SELECT name, type, provider, secret_string FROM duckdb_secrets() WHERE name='moc
     if CREDS["SecretAccessKey"] in out.stdout:
         fail("SecretAccessKey leaked unredacted in duckdb_secrets()")
 
-    print("PASS: blobsso sso provider — STS round-trip via mock server")
+    print("PASS: sso sso provider — STS round-trip via mock server")
     print(f"  Action + WebIdentityToken forwarded; AccessKeyId {CREDS['AccessKeyId']} in secret; secret redacted")
 
 

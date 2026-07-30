@@ -20,7 +20,7 @@ jobs:
     with:
       duckdb_version: v1.5.4
       ci_tools_version: v1.5-variegata
-      extension_name: blobsso
+      extension_name: sso
 
   code-quality-check:
     name: Code Quality Check
@@ -28,5 +28,5 @@ jobs:
     with:
       duckdb_version: v1.5.4
       ci_tools_version: v1.5-variegata
-      extension_name: blobsso
+      extension_name: sso
       format_checks: 'format;tidy'

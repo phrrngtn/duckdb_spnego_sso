@@ -1,7 +1,7 @@
-# blobsso — Context & Handoff
+# sso — Context & Handoff
 
 *Written 2026-06-22 to let a fresh Claude Code session resume with minimal context.
-Working name `blobsso` (was `blobauth`; may still change). Owner: phrrngtn.*
+Working name `sso` (was `blobauth`; may still change). Owner: phrrngtn.*
 
 ## 1. What we're building
 
@@ -18,12 +18,12 @@ the object-store side is the remaining secret. This extension closes that gap wi
 
 ## 2. Current status
 
-- Local git repo at `~/checkouts/blobsso` (renamed from `blobauth`; **no remote yet**).
+- Local git repo at `~/checkouts/sso` (renamed from `blobauth`; **no remote yet**).
 - **Scaffolded 2026-06-22** from the official `duckdb/extension-template` (chosen over
-  mirroring blobhttp's hand-rolled harness). `src/blobsso_extension.cpp` registers the
+  mirroring blobhttp's hand-rolled harness). `src/sso_extension.cpp` registers the
   **Stage 1 tracer-bullet `sso` provider for `TYPE s3`** — round-trips config into a
   `KeyValueSecret` (placeholder creds + `refresh=auto`); real STS call is the next edit.
-  Test: `test/sql/blobsso.test`.
+  Test: `test/sql/sso.test`.
 - **Pinned to duckdb `v1.5.4`** (and `extension-ci-tools v1.5.4`) as git submodules —
   NOT a `main` commit. Why: the C++ extension ABI is version-locked, and we want
   runtime `INSTALL httpfs; LOAD httpfs;` in tests to resolve a **prebuilt** httpfs from
@@ -33,7 +33,7 @@ the object-store side is the remaining secret. This extension closes that gap wi
 - **httpfs is NOT compiled in** (it's out-of-tree; `duckdb_extension_load(httpfs)`
   fails — "not an existing directory"). We only need the **s3 secret type** it
   registers (and later its core HTTPUtil), both available at runtime → tests do
-  `INSTALL httpfs; LOAD httpfs;`. So blobsso links **zero** external libs (no OpenSSL).
+  `INSTALL httpfs; LOAD httpfs;`. So sso links **zero** external libs (no OpenSSL).
 - **Build:** `VCPKG_TOOLCHAIN_PATH=~/vcpkg/scripts/buildsystems/vcpkg.cmake make`
   (first build compiles duckdb core once — unavoidable, see §3; later edits relink in
   seconds). Artifacts: `build/release/duckdb`, `build/release/test/unittest`.
@@ -132,7 +132,7 @@ need?" decomposes:
 | # | Decision | Status |
 |---|----------|--------|
 | C++ (not C) extension | secret-provider API is C++-core only | **settled** |
-| Name | `blobsso` | settled (may still change) |
+| Name | `sso` | settled (may still change) |
 | Dev location | local Mac; dc1 is deploy/test | **settled** |
 | STS via aws-sdk-cpp? | **No** — too heavy for one POST | settled |
 | STS HTTP transport | **reuse httpfs `HTTPUtil`** (zero deps) — verified reachable | **settled (2026-06-22, see §4.1)** |
@@ -173,7 +173,7 @@ Searched 2026-06-22:
 
 ## 7. Resources & locations
 
-- **This repo:** `~/checkouts/blobsso` (Mac).
+- **This repo:** `~/checkouts/sso` (Mac).
 - **Reference clones on dc1** (`ssh phrrngtn@dc1`):
   - `/tmp/duckdb-aws` — `src/aws_secret.cpp` is THE provider template (see §3).
   - `/tmp/duckdb-httpfs` — for finding the HTTP secret type + the `HTTPUtil` abstraction.
@@ -190,7 +190,7 @@ Searched 2026-06-22:
   `127.0.0.1:9000`, console open). Roadmap note parked in
   `~/research/DuckLake Lakehouse Roadmap.md` ("SPNEGO→STS secret provider [must be C++]").
 - **Docs convention:** high-level `docs/*.md` get symlinked into `~/research/`
-  (Obsidian vault) — `ln -s ~/checkouts/blobsso/docs/<Note>.md ~/research/<Note>.md`.
+  (Obsidian vault) — `ln -s ~/checkouts/sso/docs/<Note>.md ~/research/<Note>.md`.
 
 ## 8. Next steps (for the fresh session)
 
@@ -210,7 +210,7 @@ Searched 2026-06-22:
    **no OIDC IdP** — see [[dc1-infrastructure-inventory]]. Plan agreed with user
    2026-06-22: *client-first then Keycloak; skip the AD/LDAP-bind mechanism.* So next:
    deploy **Keycloak** on dc1 federated to Samba AD with SPNEGO, register an SPN/keytab,
-   configure MinIO `identity_openid` to trust it; blobsso acquires the JWT via
+   configure MinIO `identity_openid` to trust it; sso acquires the JWT via
    `Authorization: Negotiate` (reuse `blobhttp` `negotiate_auth.{hpp,cpp}`). Needs user
    go-ahead to provision the Keycloak container on dc1 (shared state).
 
@@ -224,4 +224,4 @@ Searched 2026-06-22:
 - Prefers **integrated security / password-less** everywhere (drove this whole project).
 - "Business logic in the shared C library; thin shims." Don't duplicate (→ reuse blobhttp).
 - Forgejo on dc1 for self-hosted remotes (see `~/checkouts/CLAUDE.md` for API/mTLS);
-  also publishes to GitHub. No remote created for blobsso yet.
+  also publishes to GitHub. No remote created for sso yet.

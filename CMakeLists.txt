@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 # Set extension name here
-set(TARGET_NAME blobsso)
+set(TARGET_NAME sso)
 
 # No link-time external deps. The STS POST rides httpfs's core HTTPUtil, and the
 # secret-provider API is duckdb core. The Stage-2 SPNEGO path (vendored negotiate
@@ -22,7 +22,7 @@ include_directories(src/include
                     third_party/spnego-token
                     third_party/spnego-token/third_party/json/single_include)
 
-set(EXTENSION_SOURCES src/blobsso_extension.cpp third_party/spnego-token/spnego_token.cpp)
+set(EXTENSION_SOURCES src/sso_extension.cpp third_party/spnego-token/spnego_token.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})

@@ -1,6 +1,6 @@
-# blobsso  *(working name — may change)*
+# sso  *(working name — may change)*
 
-[![Build](https://github.com/phrrngtn/blobsso/actions/workflows/MainDistributionPipeline.yml/badge.svg)](https://github.com/phrrngtn/blobsso/actions/workflows/MainDistributionPipeline.yml)
+[![Build](https://github.com/phrrngtn/sso/actions/workflows/MainDistributionPipeline.yml/badge.svg)](https://github.com/phrrngtn/sso/actions/workflows/MainDistributionPipeline.yml)
 
 > **Note:** This code is almost entirely AI-authored (Claude, Anthropic), albeit under close human supervision, and is for research and experimentation purposes. Successful experiments may be re-implemented in a more coordinated and curated manner.
 
@@ -43,7 +43,7 @@ flowchart LR
 
 ## Proof by construction: DuckDB-native SSO
 
-blobsso is a working demonstration that enterprise **SSO → temporary S3 credentials** can
+sso is a working demonstration that enterprise **SSO → temporary S3 credentials** can
 live entirely *inside* DuckDB — no client-side SDK, no static keys, no separate broker. The
 whole identity → STS → S3 flow is a **SQL-loadable secret provider**, driven by ordinary SQL:
 
@@ -63,7 +63,7 @@ MinIO for free — the CLI, Python, JDBC, and crucially **ODBC → Tableau / Pow
 flowchart TD
   C1["CLI · Python · JDBC"] --> DDB
   C2["ODBC → Tableau / BI"] --> DDB
-  DDB["DuckDB + blobsso<br/>CREATE SECRET … PROVIDER sso"]
+  DDB["DuckDB + sso<br/>CREATE SECRET … PROVIDER sso"]
   DDB -. "① pre-flight SPNEGO<br/>ambient kinit ticket — no browser" .-> KC["Keycloak / OIDC"]
   KC -. "JWT" .-> DDB
   DDB -. "② AssumeRoleWithWebIdentity" .-> STS["MinIO STS"]
@@ -72,7 +72,7 @@ flowchart TD
 ```
 
 **The linchpin is non-interactive auth.** A browser-based OIDC redirect is impossible from
-Tableau or a raw ODBC connection. blobsso's **pre-flight SPNEGO** uses the caller's *ambient
+Tableau or a raw ODBC connection. sso's **pre-flight SPNEGO** uses the caller's *ambient
 Kerberos ticket* — no prompt, no redirect, no device code — so the whole SSO completes
 silently inside `CREATE SECRET`. That is what turns "surface Kerberos-gated on-prem MinIO to
 Tableau, keylessly" from impossible into a two-line SQL preamble.
@@ -107,7 +107,7 @@ everything else (HTTP, TLS, the S3 client) is borrowed from the DuckDB host.
 
 ## Why a C++ extension (the security API is not in the C interface)
 
-blobsso **must** be C++. The DuckDB **secret-provider** surface —
+sso **must** be C++. The DuckDB **secret-provider** surface —
 `CreateSecretFunction`, `KeyValueSecret`, `RegisterSecretType`,
 `ExtensionLoader::RegisterFunction`, and `HTTPUtil` — lives only in the **C++ core**.
 It is **not** exposed through the stable **C extension API**: `duckdb.h` and
@@ -160,7 +160,7 @@ CREATE SECRET kerb (TYPE http, EXTRA_HTTP_HEADERS MAP {
 STS credentials are short-lived (minutes to ~an hour), so the provider is built to be
 **re-runnable**, and the secret carries everything needed to re-run it:
 
-- On creation, blobsso stores **all** the original `CREATE SECRET` options as a
+- On creation, sso stores **all** the original `CREATE SECRET` options as a
   `refresh_info` struct inside the secret (alongside the temp creds and their
   `expiration`).
 - When an S3 request fails because the credentials have expired, **httpfs**
@@ -181,7 +181,7 @@ Caveats, stated plainly:
 
 - Refresh is **reactive**, not a proactive timer: it fires on an expired-credential
   failure and retries, so the first call after expiry pays one failed-then-retried
-  round-trip. (The `expiration` is stored in the secret but blobsso does not itself run
+  round-trip. (The `expiration` is stored in the secret but sso does not itself run
   a background refresher.)
 - For the SPNEGO path, refresh needs a **valid Kerberos ticket** when it runs. If the
   TGT has also expired, the refresh fails and you re-`kinit` — the long-lived secret of
@@ -203,7 +203,7 @@ Caveats, stated plainly:
 
 In an enterprise setting the costs that matter are the auth handshake and the per-object
 overhead of object storage — not the SQL engine. See
-**[docs/blobsso Performance.md](docs/blobsso%20Performance.md)** for measured numbers
+**[docs/sso Performance.md](docs/sso%20Performance.md)** for measured numbers
 (one-time SSO ~230ms; ~8–12ms per S3 object open) and the layered mitigations that retire them
 (DuckLake catalog for metadata, `cache_httpfs` for repeated data) — all driven by one keyless
 `CREATE SECRET`, with `BLOBSSO_TIMING=1` for the per-step breakdown.
@@ -216,10 +216,10 @@ on-prem object storage (cloud→on-prem data repatriation, governed by SSO reads
 
 ```
 CMakeLists.txt                     # links only ${CMAKE_DL_LIBS} (+ secur32 on Windows)
-src/blobsso_extension.cpp          # the 'sso' provider: token acquisition + STS + KeyValueSecret
-src/include/blobsso_extension.hpp
+src/sso_extension.cpp          # the 'sso' provider: token acquisition + STS + KeyValueSecret
+src/include/sso_extension.hpp
 third_party/spnego-token/          # submodule: shared SPNEGO atom (+ nested nlohmann/json)
-test/sql/blobsso.test              # sqllogictest: registration + input validation
+test/sql/sso.test              # sqllogictest: registration + input validation
 test/mock_sts_test.py              # mock-STS round-trip integration test
 .github/workflows/                 # multi-arch distribution pipeline
 .forgejo/workflows/                # self-hosted build (dc1 + Mac runners)

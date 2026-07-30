@@ -1,5 +1,5 @@
-# name: test/sql/blobsso.test
-# description: blobsso 'sso' s3 secret provider — registration + input validation
+# name: test/sql/sso.test
+# description: sso 'sso' s3 secret provider — registration + input validation
 # group: [sql]
 
 #
@@ -16,7 +16,7 @@ INSTALL httpfs;
 statement ok
 LOAD httpfs;
 
-require blobsso
+require sso
 
 # Missing sts_endpoint is rejected.
 statement error

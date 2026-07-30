@@ -1,9 +1,9 @@
-# blobsso — Performance Notes
+# sso — Performance Notes
 
 > Why this matters: in an enterprise setting the interesting costs aren't the SQL engine —
 > they're the **authentication handshake** and the **per-object overhead of object storage**.
 > This note characterizes both with measurements, and the layered mitigations that retire
-> them. Related: [[blobsso]], [[spnego-token]].
+> them. Related: [[sso]], [[spnego-token]].
 
 All figures are **warm** measurements on a LAN — DuckDB on a laptop; MinIO, Keycloak, and a
 Samba KDC on a single host. Absolute numbers vary with network and hardware; the **shape** is
@@ -34,11 +34,11 @@ than follow it). Measured effect: token exchange ~25 ms → ~10 ms; `jwt_total` 
 
 > **Measurement gotcha:** the *first* run after a rebuild can show a multi-second
 > `oidc_discover`. That is a local application firewall (e.g. Little Snitch) prompting on the
-> new binary, or a cold DNS resolution — **not** blobsso. Warm runs are the real numbers.
+> new binary, or a cold DNS resolution — **not** sso. Warm runs are the real numbers.
 
 ## 2. The per-object S3 overhead — ~8–12 ms per object
 
-Independent of blobsso; this is the cost of reading an object from S3/MinIO via `httpfs`:
+Independent of sso; this is the cost of reading an object from S3/MinIO via `httpfs`:
 
 | query | time |
 |---|---|
@@ -83,7 +83,7 @@ The community `cache_httpfs` extension caches S3 reads on local disk:
 | #1 cold (fetch from MinIO + populate cache) | 208 ms |
 | #2 / #3 (cache hit) | ~4 ms |
 
-**~40–50× on repeated reads**, and it works **transparently through blobsso's secret** (it
+**~40–50× on repeated reads**, and it works **transparently through sso's secret** (it
 wraps `httpfs`, so the temp creds flow straight through). The usual cache-correctness hazard —
 invalidation — **does not apply to lake data**: those parquet files are immutable (a path's
 bytes never change; new data = new files, tracked by the catalog). A URL-keyed byte cache is
@@ -99,10 +99,10 @@ different layer:
 |---|---|---|
 | **planning / metadata** (which files, how many rows) | 222 ms raw glob, O(N files) | **DuckLake catalog** — ~4 ms `count`, 0 files, O(1) |
 | **repeated data bytes** | 208 ms re-fetch every query | **cache_httpfs** — ~4 ms from local cache |
-| **auth** | static keys distributed per client | **blobsso** — ambient Kerberos → STS, no keys, auto-rotating |
+| **auth** | static keys distributed per client | **sso** — ambient Kerberos → STS, no keys, auto-rotating |
 
 The ~8–12 ms-per-object S3 tax is only paid on **cold, catalog-less, uncached** access — which
-is exactly the case all three of these are designed to retire. blobsso's job is the auth layer:
+is exactly the case all three of these are designed to retire. sso's job is the auth layer:
 turn an enterprise identity into short-lived, keyless credentials once, transparently to the
 catalog and the cache above it.
 
@@ -121,6 +121,6 @@ BLOBSSO_TIMING=1 duckdb -c ".timer on" -f your_queries.sql
 
 ## Related
 
-- [[blobsso]] — the SSO → STS → S3 secret provider this note measures.
+- [[sso]] — the SSO → STS → S3 secret provider this note measures.
 - [[spnego-token]] — the curl-free preemptive-SPNEGO atom behind the `oidc_discover` /
   `spnego_authorize` steps.
